@@ -13,10 +13,10 @@ public class Main {
 
     public static void main(String[] args) {
 
-        Scanner scanner = new Scanner(System.in);
+//        Scanner scanner = new Scanner(System.in);
 
         System.out.print("Enter the path to the base input folder: ");
-        String baseInputFolderPath = scanner.nextLine();
+        String baseInputFolderPath = args[0];
         Path baseInputPath = Paths.get(baseInputFolderPath);
 
         if (!Files.isDirectory(baseInputPath)) {
@@ -25,11 +25,11 @@ public class Main {
         }
 
         System.out.print("Enter regex to match string names (e.g., ^label_.*): ");
-        String regex = scanner.nextLine();
+        String regex = args[1];
         Pattern pattern = Pattern.compile(regex);
 
         System.out.print("Enter path to output folder for audio files: ");
-        String baseOutputFolderPath = scanner.nextLine();
+        String baseOutputFolderPath =args[2];
         Path baseOutputPath = Paths.get(baseOutputFolderPath);
 
         try {
