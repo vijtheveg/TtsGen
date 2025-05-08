@@ -11,11 +11,21 @@ import java.util.stream.Stream;
 public class Main {
 
     public static void main(String[] args) {
+        String inputFolder;
+        String regexPattern;
+        String outputFolder;
+        String audioPrefix;
 
-//        Scanner scanner = new Scanner(System.in);
+        if (args.length == 4) {
 
-        System.out.print("Enter the path to the base input folder: ");
-        String baseInputFolderPath = args[0];
+            inputFolder = args[0];
+            regexPattern = args[1];
+            outputFolder = args[2];
+            audioPrefix = args[3];
+        } else {
+            throw new IllegalArgumentException("Expected 4 arguments: <inputFolder> <regexPattern> <outputFolder> <audioPrefix>");
+        }
+        String baseInputFolderPath = inputFolder;
         Path baseInputPath = Paths.get(baseInputFolderPath);
 
         if (!Files.isDirectory(baseInputPath)) {
@@ -24,12 +34,10 @@ public class Main {
             return;
         }
 
-        System.out.print("Enter regex to match string names (e.g., ^label_.*): ");
-        String regex = args[1];
+        String regex = regexPattern;
         Pattern pattern = Pattern.compile(regex);
 
-        System.out.print("Enter path to output folder for audio files: ");
-        String baseOutputFolderPath =args[2];
+        String baseOutputFolderPath = outputFolder;
         Path baseOutputPath = Paths.get(baseOutputFolderPath);
 
         try {
@@ -44,7 +52,6 @@ public class Main {
         try {
 
             TtsService ttsService = new TtsService();
-            // Traverse subdirectories like values-en, values-bn, etc.
             try (Stream<Path> subDirs = Files.list(baseInputPath)) {
 
                 subDirs.filter(Files::isDirectory).forEach(subDir -> {
@@ -52,7 +59,6 @@ public class Main {
                     String folderName = subDir.getFileName().toString();
                     String[] parts = folderName.split("-");
                     String langCode = parts[parts.length - 1];
-
                     Path langOutputPath = baseOutputPath.resolve("raw-" + langCode);
                     try {
 
@@ -72,13 +78,10 @@ public class Main {
                                             XmlStringExtractor.extractMatchingStrings(filePath.toFile(), pattern);
                                     results.forEach((key, value) -> {
 
-                                        if (!value.trim().isEmpty()) {
-
-                                            ttsService.synthesizeToFile(value, langOutputPath, langCode);
-                                        } else {
-
+                                        if (!value.trim().isEmpty())
+                                            ttsService.synthesizeToFile(audioPrefix, value, langOutputPath, langCode);
+                                        else
                                             System.out.println("Skipping empty value for: " + key);
-                                        }
                                     });
                                 });
                     } catch (IOException e) {

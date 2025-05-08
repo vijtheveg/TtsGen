@@ -15,14 +15,11 @@ public class XmlStringExtractor {
     public static Map<String, String> extractMatchingStrings(File xmlFile, Pattern regexPattern) {
 
         Map<String, String> matchedStrings = new LinkedHashMap<>();
-
         try {
 
             Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(xmlFile);
             doc.getDocumentElement().normalize();
-
             NodeList stringNodes = doc.getElementsByTagName("string");
-
             for (int i = 0; i < stringNodes.getLength(); i++) {
 
                 Node node = stringNodes.item(i);
@@ -32,10 +29,8 @@ public class XmlStringExtractor {
                     String name = element.getAttribute("name");
                     String value = element.getTextContent();
 
-                    if (regexPattern.matcher(name).matches()) {
-
+                    if (regexPattern.matcher(name).matches())
                         matchedStrings.put(name, value);
-                    }
                 }
             }
 

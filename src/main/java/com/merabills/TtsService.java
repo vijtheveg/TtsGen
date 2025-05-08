@@ -15,27 +15,29 @@ public class TtsService {
     private final TextToSpeechClient ttsClient;
 
     public TtsService() throws IOException {
+
         this.ttsClient = TextToSpeechClient.create();
     }
 
-    public void synthesizeToFile(String text, Path outputDir, String lanCode) {
-        LanguageMapper.VoiceConfig config = LanguageMapper.getVoiceConfig(lanCode);
+    public void synthesizeToFile(String audioPrefix, String text, Path outputDir, String lanCode) {
 
+        LanguageMapper.VoiceConfig config = LanguageMapper.getVoiceConfig(lanCode);
         try {
-            String hashedFileName = md5Hash(text) + ".mp3";
+
+            String hashedFileName = audioPrefix + md5Hash(text) + "_" + lanCode + ".mp3";
             Path outputPath = outputDir.resolve(hashedFileName);
 
             if (Files.exists(outputPath)) {
+
                 System.out.println("File already exists, skipping: " + outputPath);
                 return;
             }
-
             // Build the voice request
             SynthesisInput input = SynthesisInput.newBuilder().setText(text).build();
             VoiceSelectionParams voice = VoiceSelectionParams.newBuilder()
                     .setLanguageCode(config.languageCode())
                     .setName(config.voiceName())
-                    .setSsmlGender(SsmlVoiceGender.NEUTRAL)
+                    .setSsmlGender(SsmlVoiceGender.FEMALE)
                     .build();
 
             AudioConfig audioConfig = AudioConfig.newBuilder()
@@ -46,6 +48,7 @@ public class TtsService {
             ByteString audioContents = response.getAudioContent();
 
             try (FileOutputStream out = new FileOutputStream(outputPath.toFile())) {
+
                 out.write(audioContents.toByteArray());
                 System.out.println("Audio content written to: " + outputPath);
             }
@@ -57,19 +60,19 @@ public class TtsService {
     }
 
     private String md5Hash(String input) throws NoSuchAlgorithmException {
+
         MessageDigest md = MessageDigest.getInstance("MD5");
         byte[] hashBytes = md.digest(input.getBytes());
         StringBuilder hexString = new StringBuilder();
-        for (byte b : hashBytes) {
+        for (byte b : hashBytes)
             hexString.append(String.format("%02x", b));
-        }
         return hexString.toString();
     }
 
     public void shutdown() {
-        if (ttsClient != null) {
+
+        if (ttsClient != null)
             ttsClient.close();
-        }
     }
 
 }
