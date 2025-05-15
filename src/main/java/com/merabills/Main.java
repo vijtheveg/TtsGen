@@ -23,7 +23,11 @@ public class Main {
             outputFolder = args[2];
             audioPrefix = args[3];
         } else {
-            throw new IllegalArgumentException("Expected 4 arguments: <inputFolder> <regexPattern> <outputFolder> <audioPrefix>");
+//            throw new IllegalArgumentException("Expected 4 arguments: <inputFolder> <regexPattern> <outputFolder> <audioPrefix>");
+            inputFolder = "/Users/rajatdhamija/Texts";
+            regexPattern = "quick_tips_.*";
+            outputFolder = "/Users/rajatdhamija/Output_Texts";
+            audioPrefix = "merabills";
         }
         String baseInputFolderPath = inputFolder;
         Path baseInputPath = Paths.get(baseInputFolderPath);

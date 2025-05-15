@@ -33,7 +33,8 @@ public class TtsService {
                 return;
             }
             // Build the voice request
-            SynthesisInput input = SynthesisInput.newBuilder().setText(text).build();
+            SynthesisInput input = SynthesisInput.newBuilder().setSsml(text).build();
+            System.out.println(input);
             VoiceSelectionParams voice = VoiceSelectionParams.newBuilder()
                     .setLanguageCode(config.languageCode())
                     .setName(config.voiceName())

@@ -21,8 +21,8 @@ public class LanguageMapper {
         languageMap.put("mr", new VoiceConfig("mr-IN", "mr-IN-Wavenet-A"));
         languageMap.put("pa", new VoiceConfig("pa-IN", "pa-IN-Wavenet-A"));
         languageMap.put("ta", new VoiceConfig("ta-IN", "ta-IN-Wavenet-A"));
-        languageMap.put("te", new VoiceConfig("te-IN", "te-IN-Wavenet-A"));
-        languageMap.put("en", new VoiceConfig("en-IN", "en-IN-Wavenet-A"));
+        languageMap.put("te", new VoiceConfig("te-IN", "te-IN-Standard-A"));
+        languageMap.put("en", new VoiceConfig("en-IN", "en-US-Wavenet-A"));
     }
 
     public static VoiceConfig getVoiceConfig(String lanCode) {
