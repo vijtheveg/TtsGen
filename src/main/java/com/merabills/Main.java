@@ -27,7 +27,7 @@ public class Main {
             inputFolder = "/Users/rajatdhamija/Texts";
             regexPattern = "quick_tips_.*";
             outputFolder = "/Users/rajatdhamija/Output_Texts";
-            audioPrefix = "merabills";
+            audioPrefix = "audio_";
         }
         String baseInputFolderPath = inputFolder;
         Path baseInputPath = Paths.get(baseInputFolderPath);

@@ -12,7 +12,7 @@ public class LanguageMapper {
 
     static {
 
-        languageMap.put("as", new VoiceConfig("as-IN", "as-IN-Wavenet-A"));
+        languageMap.put("as", new VoiceConfig("as-IN", "hi-IN-Wavenet-A"));
         languageMap.put("bn", new VoiceConfig("bn-IN", "bn-IN-Wavenet-A"));
         languageMap.put("gu", new VoiceConfig("gu-IN", "gu-IN-Wavenet-A"));
         languageMap.put("hi", new VoiceConfig("hi-IN", "hi-IN-Wavenet-A"));
