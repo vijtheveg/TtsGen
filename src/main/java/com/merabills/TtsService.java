@@ -94,7 +94,6 @@ public class TtsService {
      * Used to create unique, consistent filenames for TTS outputs.
      */
     private String md5Hash(String input) throws NoSuchAlgorithmException {
-        System.out.println(input.length());
         MessageDigest md = MessageDigest.getInstance("MD5");
         byte[] hashBytes = md.digest(input.getBytes(StandardCharsets.UTF_8));
         return bytesToHex(hashBytes);
