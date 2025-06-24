@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -21,6 +23,7 @@ import java.util.stream.Stream;
  * Parameters:
  * - inputFolder: Root directory containing subdirectories for each language (e.g., res-hi, res-en).
  * - regexPattern: Regular expression to filter string keys (e.g., ^tip_.*).
+ *   You can add multiple regex to this separated by a semicolon(;) eg: (e.g., ^tip_.*;^catalog_.*)
  * - outputFolder: Root folder where generated audio files will be saved (e.g., ./output).
  * - audioPrefix: Prefix to prepend to each audio filename (e.g., "audio_").
  * <p>
@@ -65,7 +68,10 @@ public class Main {
         String regex = regexPattern;
 
         // Compile the regex pattern for filtering strings
-        Pattern pattern = Pattern.compile(regex);
+        List<Pattern> patterns = new ArrayList<>();
+        for (String reg : regex.split(";")) {
+            patterns.add(Pattern.compile(reg.trim()));
+        }
 
         String baseOutputFolderPath = outputFolder;
 
@@ -116,7 +122,7 @@ public class Main {
 
                                     // Extract key-value string pairs that match the regex
                                     Map<String, String> results =
-                                            XmlStringExtractor.extractMatchingStrings(filePath.toFile(), pattern);
+                                            XmlStringExtractor.extractMatchingStrings(filePath.toFile(), patterns);
 
                                     // Synthesize audio for each matching string
                                     results.forEach((key, value) -> {

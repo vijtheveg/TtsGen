@@ -5,6 +5,7 @@ import org.w3c.dom.*;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.File;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -13,15 +14,23 @@ import java.util.regex.Pattern;
  * Preserves raw inner XML (such as <sub> or SSML tags) inside the <string> value.
  */
 public class XmlStringExtractor {
+    private static boolean matchesAnyPattern(String key, List<Pattern> patterns) {
+        for (Pattern pattern : patterns) {
+            if (pattern.matcher(key).matches()) {
+                return true;
+            }
+        }
+        return false;
+    }
     /**
      * Parses the XML file and extracts string values whose 'name' attributes match the given regex.
      * It preserves inner XML content such as <sub alias="..."> or other SSML tags.
      *
      * @param xmlFile      XML file to parse (typically strings.xml)
-     * @param regexPattern Pattern to match against the 'name' attribute
+     * @param regexPatterns  to match against the 'name' attribute
      * @return A map of string name → raw value (with inner XML intact)
      */
-    public static Map<String, String> extractMatchingStrings(File xmlFile, Pattern regexPattern) {
+    public static Map<String, String> extractMatchingStrings(File xmlFile, List<Pattern> regexPatterns) {
         Map<String, String> matchedStrings = new LinkedHashMap<>();
         try {
 
@@ -43,10 +52,31 @@ public class XmlStringExtractor {
                     String value = extractRawXmlContent(element);  // Get full content including nested tags preserving SSML tags
 
                     // Match key against the regex pattern
-                    if (regexPattern.matcher(name).matches())
+                    if (matchesAnyPattern(name, regexPatterns))
                         matchedStrings.put(name, value);
                 }
             }
+
+            NodeList stringArrayNodes = doc.getElementsByTagName("string-array");
+            for (int i = 0; i < stringArrayNodes.getLength(); i++) {
+                Node node = stringArrayNodes.item(i);
+
+                if (node.getNodeType() == Node.ELEMENT_NODE) {
+                    Element element = (Element) node;
+                    String baseName = element.getAttribute("name");
+
+                    NodeList items = element.getElementsByTagName("item");
+                    for (int j = 0; j < items.getLength(); j++) {
+                        Node itemNode = items.item(j);
+                        String itemValue = itemNode.getTextContent();
+                        String itemKey = baseName + "[" + j + "]";
+
+                        if (matchesAnyPattern(itemKey, regexPatterns))
+                            matchedStrings.put(itemKey, itemValue);
+                    }
+                }
+            }
+
 
         } catch (Exception e) {
             System.err.println("Failed to parse XML file: " + xmlFile.getAbsolutePath());
