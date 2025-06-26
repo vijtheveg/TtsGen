@@ -2,8 +2,8 @@ package com.merabills;
 
 import com.google.cloud.texttospeech.v1.*;
 import com.google.protobuf.ByteString;
+import org.jetbrains.annotations.NotNull;
 
-import javax.annotation.Nullable;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -12,44 +12,63 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 
-public class TtsService {
+public class TtsService implements AutoCloseable {
 
-    private final TextToSpeechClient ttsClient;
+    public TtsService() throws IOException, NoSuchAlgorithmException {
 
-    public TtsService() throws IOException {
+        ttsClient = TextToSpeechClient.create();
 
-        this.ttsClient = TextToSpeechClient.create();
+        md5 = MessageDigest.getInstance("MD5");
+
+        audioConfig = AudioConfig.newBuilder()
+            .setAudioEncoding(AudioEncoding.MP3)
+            .build();
+
+        mVoiceParamsByLanguage = new TreeMap<>();
     }
 
-    public void synthesizeToFile(String audioPrefix, String text, Path outputDir, String lanCode) {
+    public void synthesizeTextToAudioFile(
+        final @NotNull String text,
+        final @NotNull String languageCode,
+        final @NotNull Path outputDirectory,
+        final @NotNull String audioFilePrefix) {
 
-        LanguageMapper.VoiceConfig config = LanguageMapper.getVoiceConfig(lanCode);
         try {
-            String cleanedText = text.replaceAll("\\\\n", "");
-            String hashedFileName = audioPrefix + md5Hash(cleanedText).toLowerCase(Locale.ROOT) + "_" + lanCode + ".mp3";
-            Path outputPath = outputDir.resolve(hashedFileName);
+
+            // Get voice parameters for the specified language from our cache, if possible
+            VoiceSelectionParams voiceParameters;
+            if ((voiceParameters = mVoiceParamsByLanguage.get(languageCode)) == null) {
+
+                // We don't have parameters for this language already cached.
+                // Create one and add it to the cache
+                LanguageMapper.VoiceConfig config = LanguageMapper.getVoiceConfig(languageCode);
+                voiceParameters = VoiceSelectionParams.newBuilder()
+                    .setLanguageCode(config.languageCode())
+                    .setName(config.voiceName())
+                    .setSsmlGender(SsmlVoiceGender.FEMALE)
+                    .build();
+                mVoiceParamsByLanguage.put(languageCode, voiceParameters);
+            }
+
+            final String hashedFileName = audioFilePrefix + md5Hash(text).toLowerCase(Locale.ROOT) + "_" + languageCode + ".mp3";
+            final Path outputPath = outputDirectory.resolve(hashedFileName);
             System.out.println(outputPath);
             if (Files.exists(outputPath)) {
 
                 System.out.println("File already exists, skipping: " + outputPath);
                 return;
             }
+
             // Build the voice request
-            SynthesisInput input = SynthesisInput.newBuilder().setSsml(cleanedText).build();
+            final SynthesisInput input = SynthesisInput.newBuilder().setSsml(text).build();
             System.out.println(input);
-            VoiceSelectionParams voice = VoiceSelectionParams.newBuilder()
-                    .setLanguageCode(config.languageCode())
-                    .setName(config.voiceName())
-                    .setSsmlGender(SsmlVoiceGender.FEMALE)
-                    .build();
 
-            AudioConfig audioConfig = AudioConfig.newBuilder()
-                    .setAudioEncoding(AudioEncoding.MP3)
-                    .build();
-
-            SynthesizeSpeechResponse response = ttsClient.synthesizeSpeech(input, voice, audioConfig);
-            ByteString audioContents = response.getAudioContent();
+            // Generate speech
+            final SynthesizeSpeechResponse response = ttsClient.synthesizeSpeech(input, voiceParameters, audioConfig);
+            final ByteString audioContents = response.getAudioContent();
 
             try (FileOutputStream out = new FileOutputStream(outputPath.toFile())) {
 
@@ -58,51 +77,52 @@ public class TtsService {
             }
 
         } catch (Exception e) {
+
             System.err.println("Failed to synthesize text: " + text);
             e.printStackTrace();
         }
     }
 
-    private String md5Hash(String input) throws NoSuchAlgorithmException {
-        System.out.println(input.length());
-        MessageDigest md = MessageDigest.getInstance("MD5");
-        byte[] hashBytes = md.digest(input.getBytes(StandardCharsets.UTF_8));
+    @Override
+    public void close() {
+        ttsClient.close();
+    }
+
+    private @NotNull String md5Hash(@NotNull String input) {
+
+        byte[] hashBytes = md5.digest(input.getBytes(StandardCharsets.UTF_8));
         return bytesToHex(hashBytes);
     }
 
-    public static String bytesToHex(@Nullable byte[] bytes) {
-        if (bytes != null && bytes.length != 0) {
-            char[] hexChars = new char[bytes.length * 2];
-            int i = 0;
+    private static @NotNull String bytesToHex(byte @NotNull [] bytes) {
 
-            for(int j = 0; i < bytes.length; ++i) {
-                short byteValue = toUnsignedByte(bytes[i]);
-                hexChars[j++] = getHexCharForMsn(byteValue);
-                hexChars[j++] = getHexCharForLsn(byteValue);
-            }
+        char[] hexChars = new char[bytes.length * 2];
+        for (int i = 0, j = 0; i < bytes.length; ++i) {
 
-            return new String(hexChars);
-        } else {
-            return null;
+            short byteValue = toUnsignedByte(bytes[i]);
+            hexChars[j++] = getHexCharForMsn(byteValue);
+            hexChars[j++] = getHexCharForLsn(byteValue);
         }
+
+        return new String(hexChars);
     }
-    public static char getHexCharForLsn(short byteValue) {
+
+    private static char getHexCharForLsn(short byteValue) {
         return HEX_DIGITS[byteValue & 15];
     }
-    public static short toUnsignedByte(byte value) {
-        return (short)(value & 255);
+
+    private static short toUnsignedByte(byte value) {
+        return (short) (value & 255);
     }
 
-    public static char getHexCharForMsn(short byteValue) {
+    private static char getHexCharForMsn(short byteValue) {
         return HEX_DIGITS[byteValue >>> 4];
     }
 
-    public static final char[] HEX_DIGITS = "0123456789ABCDEF".toCharArray();
+    private static final char[] HEX_DIGITS = "0123456789ABCDEF".toCharArray();
 
-    public void shutdown() {
-
-        if (ttsClient != null)
-            ttsClient.close();
-    }
-
+    private final @NotNull TextToSpeechClient ttsClient;
+    private final @NotNull MessageDigest md5;
+    private final @NotNull AudioConfig audioConfig;
+    private final @NotNull Map<String, VoiceSelectionParams> mVoiceParamsByLanguage;
 }

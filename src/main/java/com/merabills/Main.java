@@ -53,51 +53,44 @@ public class Main {
             return;
         }
 
-        try {
+        try (Stream<Path> subDirs = Files.list(baseInputPath); TtsService ttsService = new TtsService()) {
 
-            TtsService ttsService = new TtsService();
-            try (Stream<Path> subDirs = Files.list(baseInputPath)) {
+            subDirs.filter(Files::isDirectory).forEach(subDir -> {
 
-                subDirs.filter(Files::isDirectory).forEach(subDir -> {
+                String folderName = subDir.getFileName().toString();
+                String[] parts = folderName.split("-");
+                String langCode = parts[parts.length - 1];
+                Path langOutputPath = baseOutputPath.resolve("raw-" + langCode);
+                try {
 
-                    String folderName = subDir.getFileName().toString();
-                    String[] parts = folderName.split("-");
-                    String langCode = parts[parts.length - 1];
-                    Path langOutputPath = baseOutputPath.resolve("raw-" + langCode);
-                    try {
+                    Files.createDirectories(langOutputPath);
+                } catch (IOException e) {
 
-                        Files.createDirectories(langOutputPath);
-                    } catch (IOException e) {
+                    System.err.println("Failed to create output directory for " + langCode);
+                    return;
+                }
 
-                        System.err.println("Failed to create output directory for " + langCode);
-                        return;
-                    }
+                try (Stream<Path> files = Files.walk(subDir)) {
 
-                    try (Stream<Path> files = Files.walk(subDir)) {
+                    files.filter(path -> Files.isRegularFile(path) && path.toString().endsWith(".xml"))
+                        .forEach(filePath -> {
 
-                        files.filter(path -> Files.isRegularFile(path) && path.toString().endsWith(".xml"))
-                                .forEach(filePath -> {
+                            Map<String, String> results =
+                                XmlStringExtractor.extractMatchingStrings(filePath.toFile(), pattern);
+                            results.forEach((key, value) -> {
 
-                                    Map<String, String> results =
-                                            XmlStringExtractor.extractMatchingStrings(filePath.toFile(), pattern);
-                                    results.forEach((key, value) -> {
+                                if (!value.trim().isEmpty())
+                                    ttsService.synthesizeTextToAudioFile(value, langCode, langOutputPath, audioPrefix);
+                                else
+                                    System.out.println("Skipping empty value for: " + key);
+                            });
+                        });
+                } catch (IOException e) {
 
-                                        if (!value.trim().isEmpty())
-                                            ttsService.synthesizeToFile(audioPrefix, value, langOutputPath, langCode);
-                                        else
-                                            System.out.println("Skipping empty value for: " + key);
-                                    });
-                                });
-                    } catch (IOException e) {
-
-                        System.err.println("Error walking subDir " + subDir + ": " + e.getMessage());
-                    }
-                });
-            }
-
-            ttsService.shutdown();
-
-        } catch (IOException e) {
+                    System.err.println("Error walking subDir " + subDir + ": " + e.getMessage());
+                }
+            });
+        } catch (Exception e) {
 
             System.err.println("TTS Service error: " + e.getMessage());
         }
