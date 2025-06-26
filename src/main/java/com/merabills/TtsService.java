@@ -15,8 +15,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
+/**
+ * Service class responsible for converting text into audio files using
+ * Google Cloud Text-to-Speech API.
+ */
 public class TtsService implements AutoCloseable {
-
     public TtsService() throws IOException, NoSuchAlgorithmException {
 
         ttsClient = TextToSpeechClient.create();
@@ -24,17 +27,25 @@ public class TtsService implements AutoCloseable {
         md5 = MessageDigest.getInstance("MD5");
 
         audioConfig = AudioConfig.newBuilder()
-            .setAudioEncoding(AudioEncoding.MP3)
-            .build();
+                .setAudioEncoding(AudioEncoding.MP3)
+                .build();
 
         mVoiceParamsByLanguage = new TreeMap<>();
     }
 
+    /**
+     * Synthesizes the given text into an MP3 audio file and stores it in the given directory.
+     *
+     * @param text            The input text to synthesize
+     * @param outputDirectory The folder where the audio file will be saved
+     * @param languageCode    Language code (e.g., "hi", "en") used for voice selection
+     * @param audioFilePrefix Prefix to add to audio filenames (e.g., "audio_")
+     */
     public void synthesizeTextToAudioFile(
-        final @NotNull String text,
-        final @NotNull String languageCode,
-        final @NotNull Path outputDirectory,
-        final @NotNull String audioFilePrefix) {
+            final @NotNull String text,
+            final @NotNull String languageCode,
+            final @NotNull Path outputDirectory,
+            final @NotNull String audioFilePrefix) {
 
         try {
 
@@ -46,10 +57,10 @@ public class TtsService implements AutoCloseable {
                 // Create one and add it to the cache
                 LanguageMapper.VoiceConfig config = LanguageMapper.getVoiceConfig(languageCode);
                 voiceParameters = VoiceSelectionParams.newBuilder()
-                    .setLanguageCode(config.languageCode())
-                    .setName(config.voiceName())
-                    .setSsmlGender(SsmlVoiceGender.FEMALE)
-                    .build();
+                        .setLanguageCode(config.languageCode())
+                        .setName(config.voiceName())
+                        .setSsmlGender(SsmlVoiceGender.FEMALE)
+                        .build();
                 mVoiceParamsByLanguage.put(languageCode, voiceParameters);
             }
 
@@ -70,6 +81,7 @@ public class TtsService implements AutoCloseable {
             final SynthesizeSpeechResponse response = ttsClient.synthesizeSpeech(input, voiceParameters, audioConfig);
             final ByteString audioContents = response.getAudioContent();
 
+            // Write the result to a .mp3 file
             try (FileOutputStream out = new FileOutputStream(outputPath.toFile())) {
 
                 out.write(audioContents.toByteArray());
