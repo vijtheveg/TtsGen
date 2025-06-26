@@ -64,18 +64,23 @@ public class TtsService implements AutoCloseable {
                 mVoiceParamsByLanguage.put(languageCode, voiceParameters);
             }
 
-            final String hashedFileName = audioFilePrefix + md5Hash(text).toLowerCase(Locale.ROOT) + "_" + languageCode + ".mp3";
+            /*
+             *  Converting the text to Lower case post MD5 Hash is important because
+             *  most of the applications expect files names to be in lower case and
+             *  also a prefix is needed as name cannot start with a number as well
+             */
+            final String hashedFileName = audioFilePrefix
+                    + md5Hash(text).toLowerCase(Locale.ROOT)
+                    + "_" + languageCode + ".mp3";
             final Path outputPath = outputDirectory.resolve(hashedFileName);
-            System.out.println(outputPath);
             if (Files.exists(outputPath)) {
 
-                System.out.println("File already exists, skipping: " + outputPath);
+                System.err.println("File already exists, skipping: " + outputPath);
                 return;
             }
 
             // Build the voice request
             final SynthesisInput input = SynthesisInput.newBuilder().setSsml(text).build();
-            System.out.println(input);
 
             // Generate speech
             final SynthesizeSpeechResponse response = ttsClient.synthesizeSpeech(input, voiceParameters, audioConfig);
@@ -89,9 +94,7 @@ public class TtsService implements AutoCloseable {
             }
 
         } catch (Exception e) {
-
-            System.err.println("Failed to synthesize text: " + text);
-            e.printStackTrace();
+            throw new IllegalStateException("Failed to synthesize text: '" + text + "'", e);
         }
     }
 
@@ -102,16 +105,16 @@ public class TtsService implements AutoCloseable {
 
     private @NotNull String md5Hash(@NotNull String input) {
 
-        byte[] hashBytes = md5.digest(input.getBytes(StandardCharsets.UTF_8));
+        final byte[] hashBytes = md5.digest(input.getBytes(StandardCharsets.UTF_8));
         return bytesToHex(hashBytes);
     }
 
     private static @NotNull String bytesToHex(byte @NotNull [] bytes) {
 
-        char[] hexChars = new char[bytes.length * 2];
+        final char[] hexChars = new char[bytes.length * 2];
         for (int i = 0, j = 0; i < bytes.length; ++i) {
 
-            short byteValue = toUnsignedByte(bytes[i]);
+            final short byteValue = toUnsignedByte(bytes[i]);
             hexChars[j++] = getHexCharForMsn(byteValue);
             hexChars[j++] = getHexCharForLsn(byteValue);
         }

@@ -40,10 +40,10 @@ import java.util.stream.Stream;
 public class Main {
 
     public static void main(String[] args) {
-        String inputFolder;
-        String regexPattern;
-        String outputFolder;
-        String audioPrefix;
+        final String inputFolder;
+        final String regexPattern;
+        final String outputFolder;
+        final String audioPrefix;
 
         // Validate and extract command-line arguments
         if (args.length == 4) {
@@ -53,126 +53,111 @@ public class Main {
             outputFolder = args[2];
             audioPrefix = args[3];
         } else {
-
             throw new IllegalArgumentException("Expected 4 arguments: <inputFolder> <regexPattern> <outputFolder> <audioPrefix>");
         }
-        String baseInputFolderPath = inputFolder;
 
         // Set up input directory path
-        Path baseInputPath = Paths.get(baseInputFolderPath);
+        final Path baseInputPath = Paths.get(inputFolder);
 
         if (!Files.isDirectory(baseInputPath)) {
-
-            System.out.println("The provided path is not a directory. Exiting.");
-            return;
+            throw new IllegalStateException("The provided path is not a directory. Exiting.");
         }
-
-        String regex = regexPattern;
 
         // Compile the regex pattern for filtering strings
-        List<Pattern> patterns = new ArrayList<>();
-        for (String reg : regex.split(";")) {
-
-            patterns.add(Pattern.compile(reg.trim()));
+        final List<Pattern> patterns = new ArrayList<>();
+        for (String regex : regexPattern.split(";")) {
+            patterns.add(Pattern.compile(regex.trim()));
         }
 
-        String baseOutputFolderPath = outputFolder;
-
         // Set up output directory path
-        Path baseOutputPath = Paths.get(baseOutputFolderPath);
+        final Path baseOutputPath = Paths.get(outputFolder);
 
         try {
 
             Files.createDirectories(baseOutputPath);
         } catch (IOException e) {
 
-            System.err.println("Error creating base output directory: " + e.getMessage());
-            return;
+            throw new IllegalStateException("Error creating base output directory: ", e);
         }
 
-        try (Stream<Path> subDirs = Files.list(baseInputPath); TtsService ttsService = new TtsService()) {
+        try (Stream<Path> subDirectories = Files.list(baseInputPath); TtsService ttsService = new TtsService()) {
 
-            subDirs.filter(Files::isDirectory).forEach(subDir -> {
+            subDirectories.filter(Files::isDirectory).forEach(subDirectory -> {
 
-                String folderName = subDir.getFileName().toString();
+                final String folderName = subDirectory.getFileName().toString();
 
                 // Extract language code (e.g., "en" from "res-en")
-                String[] parts = folderName.split("-");
-                String langCode = parts[parts.length - 1];
+                final String[] parts = folderName.split("-");
+                final String languageCode = parts[parts.length - 1];
 
                 // Prepare corresponding output directory like "raw-en"
-                Path langOutputPath = baseOutputPath.resolve("raw-" + langCode);
+                final Path languageOutputPath = baseOutputPath.resolve("raw-" + languageCode);
                 try {
 
-                    Files.createDirectories(langOutputPath);
+                    Files.createDirectories(languageOutputPath);
                 } catch (IOException e) {
-
-                    System.err.println("Failed to create output directory for " + langCode);
-                    return;
+                    throw new IllegalStateException("Failed to create output directory for '" + languageCode + "'", e);
                 }
 
                 // Walk through all XML files inside the language folder
-                try (Stream<Path> files = Files.walk(subDir)) {
+                try (Stream<Path> files = Files.find(
+                        subDirectory,
+                        Integer.MAX_VALUE,
+                        (path, basicFileAttributes)
+                                -> basicFileAttributes.isRegularFile() && path.toString().endsWith(".xml"))
+                ) {
+                    files.forEach(filePath -> {
 
-                    files.filter(path -> Files.isRegularFile(path) && path.toString().endsWith(".xml"))
-                            .forEach(filePath -> {
+                        AndroidStringResourceParser.ParsedResources parsed;
 
-                                AndroidStringResourceParser.ParsedResources parsed;
-                                try {
+                        try {
+                            parsed = AndroidStringResourceParser.parseStringResources(filePath.toFile());
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
 
-                                    parsed = AndroidStringResourceParser.parseStringResources(filePath.toFile());
-                                } catch (Exception e) {
+                        final Map<String, String> results = new LinkedHashMap<>();
 
-                                    throw new RuntimeException(e);
+                        for (AndroidStringResourceParser.StringResource res : parsed.getStrings()) {
+
+                            for (Pattern p : patterns) {
+                                if (p.matcher(res.getName()).matches()) {
+                                    results.put(res.getName(), res.getValue());
                                 }
-                                Map<String, String> results = new LinkedHashMap<>();
+                            }
+                        }
 
-                                for (AndroidStringResourceParser.StringResource res : parsed.getStrings()) {
+                        // Match <string-array> entries
+                        for (AndroidStringResourceParser.StringArrayResource arrayRes : parsed.getStringArrays()) {
 
-                                    for (Pattern p : patterns) {
+                            for (final Pattern pattern : patterns) {
+                                if (pattern.matcher(arrayRes.getName()).matches()) {
 
-                                        if (p.matcher(res.getName()).matches()) {
+                                    List<String> items = arrayRes.getItems();
+                                    for (int i = 0; i < items.size(); i++) {
 
-                                            results.put(res.getName(), res.getValue());
-                                        }
+                                        final String key = arrayRes.getName() + "[" + i + "]";
+                                        results.put(key, items.get(i));
                                     }
+                                    break;
                                 }
+                            }
+                        }
 
-                                // Match <string-array> entries
-                                for (AndroidStringResourceParser.StringArrayResource arrayRes : parsed.getStringArrays()) {
-
-                                    for (Pattern pattern : patterns) {
-
-                                        if (pattern.matcher(arrayRes.getName()).matches()) {
-
-                                            List<String> items = arrayRes.getItems();
-                                            for (int i = 0; i < items.size(); i++) {
-
-                                                String key = arrayRes.getName() + "[" + i + "]";
-                                                results.put(key, items.get(i));
-                                            }
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                // Synthesize audio for each matching string
-                                results.forEach((key, value) -> {
-
-                                    if (!value.trim().isEmpty())
-                                        ttsService.synthesizeTextToAudioFile(audioPrefix, value, langOutputPath, langCode);
-                                    else
-                                        System.out.println("Skipping empty value for: " + key);
-                                });
-                            });
+                        // Synthesize audio for each matching string
+                        results.forEach((key, text) -> {
+                            if (!text.trim().isEmpty())
+                                ttsService.synthesizeTextToAudioFile(text, languageCode, languageOutputPath, audioPrefix);
+                            else
+                                System.out.println("Skipping empty value for: " + key);
+                        });
+                    });
                 } catch (IOException e) {
-
-                    System.err.println("Error walking subDir " + subDir + ": " + e.getMessage());
+                    throw new IllegalStateException("Error walking subDirectory '" + subDirectory + "'", e);
                 }
             });
         } catch (Exception e) {
-
-            System.err.println("TTS Service error: " + e.getMessage());
+            throw new IllegalStateException("TTS Service error: ", e);
         }
     }
 }
