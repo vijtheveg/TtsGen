@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -23,13 +24,13 @@ import java.util.stream.Stream;
  * Parameters:
  * - inputFolder: Root directory containing subdirectories for each language (e.g., res-hi, res-en).
  * - regexPattern: Regular expression to filter string keys (e.g., ^tip_.*).
- *   You can add multiple regex to this separated by a semicolon(;) eg: (e.g., ^tip_.*;^catalog_.*)
+ * You can add multiple regex to this separated by a semicolon(;) eg: (e.g., ^tip_.*;^catalog_.*)
  * - outputFolder: Root folder where generated audio files will be saved (e.g., ./output).
  * - audioPrefix: Prefix to prepend to each audio filename (e.g., "audio_").
  * <p>
  * Output:
  * - For each matching string, an `.mp3` file is created in a language-specific folder
- *   like `output/raw-hi/audio_<hash>_hi.mp3`, ensuring no duplicates via MD5-based hashing.
+ * like `output/raw-hi/audio_<hash>_hi.mp3`, ensuring no duplicates via MD5-based hashing.
  * <p>
  * Example:
  * java Main ./input "^tip_.*" ./output audio_
@@ -52,6 +53,7 @@ public class Main {
             outputFolder = args[2];
             audioPrefix = args[3];
         } else {
+
             throw new IllegalArgumentException("Expected 4 arguments: <inputFolder> <regexPattern> <outputFolder> <audioPrefix>");
         }
         String baseInputFolderPath = inputFolder;
@@ -70,6 +72,7 @@ public class Main {
         // Compile the regex pattern for filtering strings
         List<Pattern> patterns = new ArrayList<>();
         for (String reg : regex.split(";")) {
+
             patterns.add(Pattern.compile(reg.trim()));
         }
 
@@ -120,9 +123,44 @@ public class Main {
                         files.filter(path -> Files.isRegularFile(path) && path.toString().endsWith(".xml"))
                                 .forEach(filePath -> {
 
-                                    // Extract key-value string pairs that match the regex
-                                    Map<String, String> results =
-                                            XmlStringExtractor.extractMatchingStrings(filePath.toFile(), patterns);
+                                    AndroidStringResourceParser.ParsedResources parsed;
+                                    try {
+
+                                        parsed = AndroidStringResourceParser.parseStringResources(filePath.toFile());
+                                    } catch (Exception e) {
+
+                                        throw new RuntimeException(e);
+                                    }
+                                    Map<String, String> results = new LinkedHashMap<>();
+
+                                    for (AndroidStringResourceParser.StringResource res : parsed.getStrings()) {
+
+                                        for (Pattern p : patterns) {
+
+                                            if (p.matcher(res.getName()).matches()) {
+
+                                                results.put(res.getName(), res.getValue());
+                                            }
+                                        }
+                                    }
+
+                                    // Match <string-array> entries
+                                    for (AndroidStringResourceParser.StringArrayResource arrayRes : parsed.getStringArrays()) {
+
+                                        for (Pattern pattern : patterns) {
+
+                                            if (pattern.matcher(arrayRes.getName()).matches()) {
+
+                                                List<String> items = arrayRes.getItems();
+                                                for (int i = 0; i < items.size(); i++) {
+
+                                                    String key = arrayRes.getName() + "[" + i + "]";
+                                                    results.put(key, items.get(i));
+                                                }
+                                                break;
+                                            }
+                                        }
+                                    }
 
                                     // Synthesize audio for each matching string
                                     results.forEach((key, value) -> {

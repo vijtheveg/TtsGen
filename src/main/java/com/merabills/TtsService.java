@@ -45,6 +45,7 @@ public class TtsService {
         LanguageMapper.VoiceConfig config = LanguageMapper.getVoiceConfig(lanCode);
         try {
 
+            //TODO: remove it
             // Preprocess text: remove `\n`, <sub> tags, and unescape quotes
             String cleanedText = text.replaceAll("\\\\n", "").replaceAll("<sub[^>]*>", "").replaceAll("</sub>", "").replace("\\'", "'");
 
@@ -94,6 +95,7 @@ public class TtsService {
      * Used to create unique, consistent filenames for TTS outputs.
      */
     private String md5Hash(String input) throws NoSuchAlgorithmException {
+
         MessageDigest md = MessageDigest.getInstance("MD5");
         byte[] hashBytes = md.digest(input.getBytes(StandardCharsets.UTF_8));
         return bytesToHex(hashBytes);
@@ -103,11 +105,14 @@ public class TtsService {
      * Converts a byte array to a hexadecimal string.
      */
     public static String bytesToHex(@Nullable byte[] bytes) {
+
         if (bytes != null && bytes.length != 0) {
+
             char[] hexChars = new char[bytes.length * 2];
             int i = 0;
 
             for (int j = 0; i < bytes.length; ++i) {
+
                 short byteValue = toUnsignedByte(bytes[i]);
                 hexChars[j++] = getHexCharForMsn(byteValue);
                 hexChars[j++] = getHexCharForLsn(byteValue);
