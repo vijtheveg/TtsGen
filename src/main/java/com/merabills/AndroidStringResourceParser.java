@@ -42,9 +42,6 @@ public class AndroidStringResourceParser {
             return value;
         }
 
-        public boolean isTranslatable() {
-            return translatable;
-        }
 
         @Override
         public String toString() {
@@ -73,10 +70,6 @@ public class AndroidStringResourceParser {
 
         public List<String> getItems() {
             return new ArrayList<>(items);
-        }
-
-        public boolean isTranslatable() {
-            return translatable;
         }
 
         @Override
