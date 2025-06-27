@@ -1,13 +1,13 @@
 package com.merabills;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -39,7 +39,7 @@ import java.util.stream.Stream;
 
 public class Main {
 
-    public static void main(String[] args) {
+    public static void main(String @NotNull [] args) {
         final String inputFolder;
         final String regexPattern;
         final String outputFolder;
@@ -52,22 +52,19 @@ public class Main {
             regexPattern = args[1];
             outputFolder = args[2];
             audioPrefix = args[3];
-        } else {
+        } else
             throw new IllegalArgumentException("Expected 4 arguments: <inputFolder> <regexPattern> <outputFolder> <audioPrefix>");
-        }
 
         // Set up input directory path
         final Path baseInputPath = Paths.get(inputFolder);
 
-        if (!Files.isDirectory(baseInputPath)) {
+        if (!Files.isDirectory(baseInputPath))
             throw new IllegalStateException("The provided path is not a directory. Exiting.");
-        }
 
         // Compile the regex pattern for filtering strings
         final List<Pattern> patterns = new ArrayList<>();
-        for (String regex : regexPattern.split(";")) {
+        for (String regex : regexPattern.split(";"))
             patterns.add(Pattern.compile(regex.trim()));
-        }
 
         // Set up output directory path
         final Path baseOutputPath = Paths.get(outputFolder);
@@ -116,41 +113,37 @@ public class Main {
                             throw new RuntimeException(e);
                         }
 
-                        final Map<String, String> results = new LinkedHashMap<>();
-
                         for (AndroidStringResourceParser.StringResource res : parsed.getStrings()) {
-
                             for (Pattern p : patterns) {
                                 if (p.matcher(res.getName()).matches()) {
-                                    results.put(res.getName(), res.getValue());
-                                }
-                            }
-                        }
-
-                        // Match <string-array> entries
-                        for (AndroidStringResourceParser.StringArrayResource arrayRes : parsed.getStringArrays()) {
-
-                            for (final Pattern pattern : patterns) {
-                                if (pattern.matcher(arrayRes.getName()).matches()) {
-
-                                    List<String> items = arrayRes.getItems();
-                                    for (int i = 0; i < items.size(); i++) {
-
-                                        final String key = arrayRes.getName() + "[" + i + "]";
-                                        results.put(key, items.get(i));
+                                    String text = res.getValue().trim();
+                                    if (!text.isEmpty()) {
+                                        ttsService.synthesizeTextToAudioFile(text, languageCode, languageOutputPath, audioPrefix);
+                                    } else {
+                                        System.out.println("Skipping empty value for: " + res.getName());
                                     }
                                     break;
                                 }
                             }
                         }
 
-                        // Synthesize audio for each matching string
-                        results.forEach((key, text) -> {
-                            if (!text.trim().isEmpty())
-                                ttsService.synthesizeTextToAudioFile(text, languageCode, languageOutputPath, audioPrefix);
-                            else
-                                System.out.println("Skipping empty value for: " + key);
-                        });
+                        for (AndroidStringResourceParser.StringArrayResource arrayRes : parsed.getStringArrays()) {
+                            for (final Pattern pattern : patterns) {
+                                if (pattern.matcher(arrayRes.getName()).matches()) {
+                                    List<String> items = arrayRes.getItems();
+                                    for (int i = 0; i < items.size(); i++) {
+                                        final String text = items.get(i).trim();
+                                        if (!text.isEmpty()) {
+                                            ttsService.synthesizeTextToAudioFile(text, languageCode, languageOutputPath, audioPrefix);
+                                        } else {
+                                            System.out.println("Skipping empty value for: " + arrayRes.getName() + "[" + i + "]");
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+
                     });
                 } catch (IOException e) {
                     throw new IllegalStateException("Error walking subDirectory '" + subDirectory + "'", e);
