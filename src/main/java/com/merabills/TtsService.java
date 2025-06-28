@@ -15,6 +15,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static com.merabills.Main.mp3Extension;
+
 /**
  * Service class responsible for converting text into audio files using
  * Google Cloud Text-to-Speech API.
@@ -56,7 +58,7 @@ public class TtsService implements AutoCloseable {
              */
             final String hashedFileName = audioFilePrefix
                     + md5Hash(text).toLowerCase(Locale.ROOT)
-                    + "_" + languageCode + ".mp3";
+                    + "_" + languageCode + mp3Extension;
             final Path outputPath = outputDirectory.resolve(hashedFileName);
             if (Files.exists(outputPath)) {
 
