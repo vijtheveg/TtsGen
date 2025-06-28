@@ -7,7 +7,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -40,6 +42,7 @@ import java.util.stream.Stream;
 public class Main {
 
     public static void main(String @NotNull [] args) {
+
         final String inputFolder;
         final String regexPattern;
         final String outputFolder;
@@ -70,10 +73,8 @@ public class Main {
         final Path baseOutputPath = Paths.get(outputFolder);
 
         try {
-
             Files.createDirectories(baseOutputPath);
         } catch (IOException e) {
-
             throw new IllegalStateException("Error creating base output directory: ", e);
         }
 
@@ -90,10 +91,21 @@ public class Main {
                 // Prepare corresponding output directory like "raw-en"
                 final Path languageOutputPath = baseOutputPath.resolve("raw-" + languageCode);
                 try {
-
                     Files.createDirectories(languageOutputPath);
                 } catch (IOException e) {
                     throw new IllegalStateException("Failed to create output directory for '" + languageCode + "'", e);
+                }
+
+                final Set<Path> existingAudioFiles = new HashSet<>();
+
+                try (Stream<Path> audioFiles = Files.find(
+                        languageOutputPath,
+                        Integer.MAX_VALUE,
+                        (path, attr) -> attr.isRegularFile() && path.toString().endsWith(".mp3"))
+                ) {
+                    audioFiles.forEach(existingAudioFiles::add);
+                } catch (IOException e) {
+                    throw new IllegalStateException("Failed to list audio files for language '" + languageCode + "'", e);
                 }
 
                 // Walk through all XML files inside the language folder
@@ -103,6 +115,7 @@ public class Main {
                         (path, basicFileAttributes)
                                 -> basicFileAttributes.isRegularFile() && path.toString().endsWith(".xml"))
                 ) {
+
                     files.forEach(filePath -> {
 
                         AndroidStringResourceParser.ParsedResources parsed;
@@ -114,14 +127,16 @@ public class Main {
                         }
 
                         for (AndroidStringResourceParser.StringResource res : parsed.getStrings()) {
-                            for (Pattern p : patterns) {
-                                if (p.matcher(res.getName()).matches()) {
+                            for (Pattern pattern : patterns) {
+                                if (pattern.matcher(res.getName()).matches()) {
+
                                     String text = res.getValue().trim();
                                     if (!text.isEmpty()) {
-                                        ttsService.synthesizeTextToAudioFile(text, languageCode, languageOutputPath, audioPrefix);
-                                    } else {
+
+                                        Path audioPath = ttsService.synthesizeTextToAudioFile(text, languageCode, languageOutputPath, audioPrefix);
+                                        existingAudioFiles.remove(audioPath);
+                                    } else
                                         System.out.println("Skipping empty value for: " + res.getName());
-                                    }
                                     break;
                                 }
                             }
@@ -130,21 +145,33 @@ public class Main {
                         for (AndroidStringResourceParser.StringArrayResource arrayRes : parsed.getStringArrays()) {
                             for (final Pattern pattern : patterns) {
                                 if (pattern.matcher(arrayRes.getName()).matches()) {
+
                                     List<String> items = arrayRes.getItems();
                                     for (int i = 0; i < items.size(); i++) {
                                         final String text = items.get(i).trim();
                                         if (!text.isEmpty()) {
-                                            ttsService.synthesizeTextToAudioFile(text, languageCode, languageOutputPath, audioPrefix);
-                                        } else {
+
+                                            Path audioPath = ttsService.synthesizeTextToAudioFile(text, languageCode, languageOutputPath, audioPrefix);
+                                            existingAudioFiles.remove(audioPath);
+                                        } else
                                             System.out.println("Skipping empty value for: " + arrayRes.getName() + "[" + i + "]");
-                                        }
                                     }
                                     break;
                                 }
                             }
                         }
-
                     });
+
+                    for (Path unusedPath : existingAudioFiles) {
+                        try {
+
+                            Files.deleteIfExists(unusedPath);
+                            System.out.println("Deleted unused audio file: " + unusedPath);
+                        } catch (IOException e) {
+                            System.err.println("Failed to delete unused file: " + unusedPath + ". Error: " + e.getMessage());
+                        }
+                    }
+
                 } catch (IOException e) {
                     throw new IllegalStateException("Error walking subDirectory '" + subDirectory + "'", e);
                 }

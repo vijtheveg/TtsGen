@@ -41,13 +41,28 @@ public class TtsService implements AutoCloseable {
      * @param languageCode    Language code (e.g., "hi", "en") used for voice selection
      * @param audioFilePrefix Prefix to add to audio filenames (e.g., "audio_")
      */
-    public void synthesizeTextToAudioFile(
+    public @NotNull Path synthesizeTextToAudioFile(
             final @NotNull String text,
             final @NotNull String languageCode,
             final @NotNull Path outputDirectory,
             final @NotNull String audioFilePrefix) {
 
         try {
+
+            /*
+             *  Converting the text to Lower case post MD5 Hash is important because
+             *  most of the applications expect files names to be in lower case and
+             *  also a prefix is needed as name cannot start with a number as well
+             */
+            final String hashedFileName = audioFilePrefix
+                    + md5Hash(text).toLowerCase(Locale.ROOT)
+                    + "_" + languageCode + ".mp3";
+            final Path outputPath = outputDirectory.resolve(hashedFileName);
+            if (Files.exists(outputPath)) {
+
+                System.err.println("File already exists, skipping: " + outputPath);
+                return outputPath;
+            }
 
             // Get voice parameters for the specified language from our cache, if possible
             VoiceSelectionParams voiceParameters;
@@ -64,21 +79,6 @@ public class TtsService implements AutoCloseable {
                 mVoiceParamsByLanguage.put(languageCode, voiceParameters);
             }
 
-            /*
-             *  Converting the text to Lower case post MD5 Hash is important because
-             *  most of the applications expect files names to be in lower case and
-             *  also a prefix is needed as name cannot start with a number as well
-             */
-            final String hashedFileName = audioFilePrefix
-                    + md5Hash(text).toLowerCase(Locale.ROOT)
-                    + "_" + languageCode + ".mp3";
-            final Path outputPath = outputDirectory.resolve(hashedFileName);
-            if (Files.exists(outputPath)) {
-
-                System.err.println("File already exists, skipping: " + outputPath);
-                return;
-            }
-
             // Build the voice request
             final SynthesisInput input = SynthesisInput.newBuilder().setSsml(text).build();
 
@@ -93,7 +93,9 @@ public class TtsService implements AutoCloseable {
                 System.out.println("Audio content written to: " + outputPath);
             }
 
+            return outputPath;
         } catch (Exception e) {
+
             throw new IllegalStateException("Failed to synthesize text: '" + text + "'", e);
         }
     }
