@@ -47,17 +47,19 @@ public class Main {
         final String regexPattern;
         final String outputFolder;
         final String audioPrefix;
+        String pathPostfix;
 
         // Validate and extract command-line arguments
-        if (args.length == 4) {
+        if (args.length >= 4) {
 
             inputFolder = args[0];
             regexPattern = args[1];
             outputFolder = args[2];
             audioPrefix = args[3];
-        } else
-            throw new IllegalArgumentException("Expected 4 arguments: <inputFolder> <regexPattern> <outputFolder> <audioPrefix>");
-
+            pathPostfix = args[4];
+        } else {
+            throw new IllegalArgumentException("Expected Minimum 4 arguments: <inputFolder> <regexPattern> <outputFolder> <audioPrefix>");
+        }
         // Set up input directory path
         final Path baseInputPath = Paths.get(inputFolder);
 
@@ -80,16 +82,20 @@ public class Main {
 
         try (Stream<Path> subDirectories = Files.list(baseInputPath); TtsService ttsService = new TtsService()) {
 
-            subDirectories.filter(Files::isDirectory).forEach(subDirectory -> {
+            final String finalPathPostfix = pathPostfix;
+            subDirectories
+                    .filter(Files::isDirectory)
+                    .filter(subDir -> subDir.getFileName().toString().startsWith("values"))
+                    .forEach(subDirectory -> {
 
                 final String folderName = subDirectory.getFileName().toString();
 
                 // Extract language code (e.g., "en" from "res-en")
-                final String[] parts = folderName.split("-");
-                final String languageCode = parts[parts.length - 1];
+                        final String languageCode = folderName.equals("values") ? "en"
+                                : folderName.substring("values-".length());
 
                 // Prepare corresponding output directory like "raw-en"
-                final Path languageOutputPath = baseOutputPath.resolve(rawPrefix + languageCode);
+                final Path languageOutputPath = baseOutputPath.resolve(rawPrefix + languageCode + finalPathPostfix);
                 try {
                     Files.createDirectories(languageOutputPath);
                 } catch (IOException e) {
@@ -101,7 +107,7 @@ public class Main {
                 try (Stream<Path> audioFiles = Files.find(
                         languageOutputPath,
                         Integer.MAX_VALUE,
-                        (path, attr) -> attr.isRegularFile() && path.endsWith(mp3Extension))
+                        (path, attr) -> attr.isRegularFile() && path.toString().endsWith(mp3Extension))
                 ) {
                     audioFiles.forEach(existingAudioFiles::add);
                 } catch (IOException e) {
@@ -113,7 +119,7 @@ public class Main {
                         subDirectory,
                         Integer.MAX_VALUE,
                         (path, basicFileAttributes)
-                                -> basicFileAttributes.isRegularFile() && path.endsWith(xmlExtension))
+                                -> basicFileAttributes.isRegularFile() && path.toString().endsWith(xmlExtension))
                 ) {
 
                     files.forEach(filePath -> {
@@ -183,6 +189,6 @@ public class Main {
 
     public static final String xmlExtension = ".xml";
     public static final String mp3Extension = ".mp3";
-    public static final String rawPrefix = "raw-";
+    public static final String rawPrefix = "res_";
 
 }
