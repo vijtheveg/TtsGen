@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -141,20 +142,39 @@ public class Main {
                             throw new IllegalStateException("Failed to parse string resources in file '" + filePath + "'", e);
                         }
 
+                        final Consumer<String> audioSynthesizer = (@NotNull String text) -> {
+
+                            if (text.isEmpty())
+                                return;
+
+                            final Path audioPath = ttsService.synthesizeTextToAudioFile(text, languageCode, audioFileOutputFolder);
+                            existingAudioFilePaths.remove(audioPath);
+                        };
+
+                        // Find matching strings
                         for (final AndroidStringResourceParser.StringResource res : parsed.getStrings())
-                            for (Pattern pattern : patterns) {
+                            for (final Pattern pattern : patterns) {
 
                                 if (!pattern.matcher(res.getName()).matches())
                                     continue; // We don't care about this string
 
-                                final String text = res.getValue().trim();
-                                if (!text.isEmpty()) {
+                                // Matching string found - synthesize audio for it
+                                final String text = res.getValue();
+                                audioSynthesizer.accept(text);
+                                break;
+                            }
 
-                                    final Path audioPath = ttsService.synthesizeTextToAudioFile(text, languageCode, audioFileOutputFolder);
-                                    existingAudioFilePaths.remove(audioPath);
-                                } else
-                                    System.out.println("Skipping empty value of " + res.getName());
+                        // Find matching string arrays
+                        for (AndroidStringResourceParser.StringArrayResource arrayRes : parsed.getStringArrays())
+                            for (final Pattern pattern : patterns) {
 
+                                if (!pattern.matcher(arrayRes.getName()).matches())
+                                    continue;
+
+                                // Matching string array found - synthesize audio for each array item
+                                final List<String> items = arrayRes.getItems();
+                                for (final String text : items)
+                                    audioSynthesizer.accept(text);
                                 break;
                             }
                     });
