@@ -1,8 +1,9 @@
-package com.merabills;
+package com.merabills.text_to_speech;
 
 import com.google.cloud.texttospeech.v1.*;
 import com.google.protobuf.ByteString;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -15,20 +16,17 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static com.merabills.Main.mp3Extension;
-
 /**
  * Service class responsible for converting text into audio files using
  * Google Cloud Text-to-Speech API.
  */
 public class TtsService implements AutoCloseable {
+
     public TtsService() throws IOException, NoSuchAlgorithmException {
 
-        ttsClient = TextToSpeechClient.create();
+        mMd5 = MessageDigest.getInstance("MD5");
 
-        md5 = MessageDigest.getInstance("MD5");
-
-        audioConfig = AudioConfig.newBuilder()
+        mAudioConfig = AudioConfig.newBuilder()
                 .setAudioEncoding(AudioEncoding.MP3)
                 .build();
 
@@ -41,13 +39,11 @@ public class TtsService implements AutoCloseable {
      * @param text            The input text to synthesize
      * @param outputDirectory The folder where the audio file will be saved
      * @param languageCode    Language code (e.g., "hi", "en") used for voice selection
-     * @param audioFilePrefix Prefix to add to audio filenames (e.g., "audio_")
      */
     public @NotNull Path synthesizeTextToAudioFile(
             final @NotNull String text,
             final @NotNull String languageCode,
-            final @NotNull Path outputDirectory,
-            final @NotNull String audioFilePrefix) {
+            final @NotNull Path outputDirectory) {
 
         try {
 
@@ -56,15 +52,12 @@ public class TtsService implements AutoCloseable {
              *  most of the applications expect files names to be in lower case and
              *  also a prefix is needed as name cannot start with a number as well
              */
-            final String hashedFileName = audioFilePrefix
+            final String hashedFileName = OUTPUT_FILE_NAME_PREFIX
                     + md5Hash(text).toLowerCase(Locale.ROOT)
-                    + "_" + languageCode + mp3Extension;
+                    + "_" + languageCode + MP3_EXTENSION;
             final Path outputPath = outputDirectory.resolve(hashedFileName);
-            if (Files.exists(outputPath)) {
-
-                System.err.println("File already exists, skipping: " + outputPath);
+            if (Files.exists(outputPath))
                 return outputPath;
-            }
 
             // Get voice parameters for the specified language from our cache, if possible
             VoiceSelectionParams voiceParameters;
@@ -85,31 +78,38 @@ public class TtsService implements AutoCloseable {
             final SynthesisInput input = SynthesisInput.newBuilder().setSsml(text).build();
 
             // Generate speech
-            final SynthesizeSpeechResponse response = ttsClient.synthesizeSpeech(input, voiceParameters, audioConfig);
+            if (mTtsClient == null)
+                mTtsClient = TextToSpeechClient.create();
+
+            final SynthesizeSpeechResponse response = mTtsClient.synthesizeSpeech(input, voiceParameters, mAudioConfig);
             final ByteString audioContents = response.getAudioContent();
 
             // Write the result to a .mp3 file
             try (FileOutputStream out = new FileOutputStream(outputPath.toFile())) {
 
                 out.write(audioContents.toByteArray());
-                System.out.println("Audio content written to: " + outputPath);
+                System.out.printf("Audio content written to: %s\n", outputPath);
             }
 
             return outputPath;
         } catch (Exception e) {
-
             throw new IllegalStateException("Failed to synthesize text: '" + text + "'", e);
         }
     }
 
     @Override
     public void close() {
-        ttsClient.close();
+
+        if (mTtsClient != null) {
+
+            mTtsClient.close();
+            mTtsClient = null;
+        }
     }
 
     private @NotNull String md5Hash(@NotNull String input) {
 
-        final byte[] hashBytes = md5.digest(input.getBytes(StandardCharsets.UTF_8));
+        final byte[] hashBytes = mMd5.digest(input.getBytes(StandardCharsets.UTF_8));
         return bytesToHex(hashBytes);
     }
 
@@ -138,10 +138,12 @@ public class TtsService implements AutoCloseable {
         return HEX_DIGITS[byteValue >>> 4];
     }
 
-    private static final char[] HEX_DIGITS = "0123456789ABCDEF".toCharArray();
+    public static final @NotNull String OUTPUT_FILE_NAME_PREFIX = "audio_";
+    public static final @NotNull String MP3_EXTENSION = ".mp3";
+    private static final char @NotNull [] HEX_DIGITS = "0123456789ABCDEF".toCharArray();
 
-    private final @NotNull TextToSpeechClient ttsClient;
-    private final @NotNull MessageDigest md5;
-    private final @NotNull AudioConfig audioConfig;
+    private final @NotNull MessageDigest mMd5;
+    private final @NotNull AudioConfig mAudioConfig;
     private final @NotNull Map<String, VoiceSelectionParams> mVoiceParamsByLanguage;
+    private @Nullable TextToSpeechClient mTtsClient;
 }
